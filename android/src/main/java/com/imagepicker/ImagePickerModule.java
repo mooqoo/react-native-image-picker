@@ -66,7 +66,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
 
     @Override
     public String getName() {
-        return "UIImagePickerManager"; // To coincide with the iOS native module name
+        return "FilePickerManager"; // Change from UIImagePickerManager to FilePickerManager
     }
 
     @ReactMethod
