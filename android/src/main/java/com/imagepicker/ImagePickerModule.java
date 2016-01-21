@@ -4,11 +4,14 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
+import android.nfc.Tag;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.database.Cursor;
 import android.util.Base64;
 import android.app.AlertDialog;
+import android.util.Log;
+import android.webkit.MimeTypeMap;
 import android.widget.ArrayAdapter;
 import android.content.DialogInterface;
 import android.graphics.BitmapFactory;
@@ -30,7 +33,6 @@ import java.io.InputStream;
 import java.io.FileInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
-import java.io.OutputStream;
 import java.util.List;
 import java.util.ArrayList;
 import java.io.FileOutputStream;
@@ -39,91 +41,93 @@ import java.net.URL;
 import java.net.MalformedURLException;
 
 public class ImagePickerModule extends ReactContextBaseJavaModule {
-  static final int REQUEST_LAUNCH_CAMERA = 1;
-  static final int REQUEST_LAUNCH_IMAGE_LIBRARY = 2;
+    static final int REQUEST_LAUNCH_CAMERA = 1;
+    static final int REQUEST_LAUNCH_IMAGE_LIBRARY = 2;
+    static final int REQUEST_LAUNCH_VIDEO_LIBRARY = 3;
+    static final int REQUEST_SHARE = 4;
 
-  private final ReactApplicationContext mReactContext;
-  private final Activity mMainActivity;
+    private final ReactApplicationContext mReactContext;
+    private final Activity mMainActivity;
 
-  private Uri mCameraCaptureURI;
-  private Callback mCallback;
-  private Boolean noData = false;
-  private int maxWidth = 0;
-  private int maxHeight = 0;
-  private int quality = 100;
-  WritableMap response;
+    private Uri mCameraCaptureURI;
+    private Callback mCallback;
+    private Boolean noData = false;
+    private int maxWidth = 0;
+    private int maxHeight = 0;
+    private int quality = 100;
+    WritableMap response;
 
-  public ImagePickerModule(ReactApplicationContext reactContext, Activity mainActivity) {
-    super(reactContext);
+    public ImagePickerModule(ReactApplicationContext reactContext, Activity mainActivity) {
+        super(reactContext);
 
-    mReactContext = reactContext;
-    mMainActivity = mainActivity;
-  }
+        mReactContext = reactContext;
+        mMainActivity = mainActivity;
+    }
 
-  @Override
-  public String getName() {
-    return "UIImagePickerManager"; // To coincide with the iOS native module name
-  }
+    @Override
+    public String getName() {
+        return "UIImagePickerManager"; // To coincide with the iOS native module name
+    }
 
-  @ReactMethod
-  public void showImagePicker(final ReadableMap options, final Callback callback) {
-      response = Arguments.createMap();
+    @ReactMethod
+    public void showImagePicker(final ReadableMap options, final Callback callback) {
+        response = Arguments.createMap();
 
-      List<String> mTitles = new ArrayList<String>();
-      List<String> mActions = new ArrayList<String>();
+        List<String> mTitles = new ArrayList<String>();
+        List<String> mActions = new ArrayList<String>();
 
-      String cancelButtonTitle = "Cancel";
+        String cancelButtonTitle = "Cancel";
 
-      if (options.hasKey("takePhotoButtonTitle")
-              && !options.getString("takePhotoButtonTitle").isEmpty()) {
-          mTitles.add(options.getString("takePhotoButtonTitle"));
-          mActions.add("photo");
-      }
-      if (options.hasKey("chooseFromLibraryButtonTitle")
-              && !options.getString("chooseFromLibraryButtonTitle").isEmpty()) {
-          mTitles.add(options.getString("chooseFromLibraryButtonTitle"));
-          mActions.add("library");
-      }
-      if (options.hasKey("cancelButtonTitle")
-              && !options.getString("cancelButtonTitle").isEmpty()) {
-          cancelButtonTitle = options.getString("cancelButtonTitle");
-      }
-      mTitles.add(cancelButtonTitle);
-      mActions.add("cancel");
+        if (options.hasKey("takePhotoButtonTitle")
+                && !options.getString("takePhotoButtonTitle").isEmpty()) {
+            mTitles.add(options.getString("takePhotoButtonTitle"));
+            mActions.add("photo");
+        }
+        if (options.hasKey("chooseFromLibraryButtonTitle")
+                && !options.getString("chooseFromLibraryButtonTitle").isEmpty()) {
+            mTitles.add(options.getString("chooseFromLibraryButtonTitle"));
+            mActions.add("library");
+        }
+        if (options.hasKey("cancelButtonTitle")
+                && !options.getString("cancelButtonTitle").isEmpty()) {
+            cancelButtonTitle = options.getString("cancelButtonTitle");
+        }
+        mTitles.add(cancelButtonTitle);
+        mActions.add("cancel");
 
-      String[] option = new String[mTitles.size()];
-      option = mTitles.toArray(option);
+        String[] option = new String[mTitles.size()];
+        option = mTitles.toArray(option);
 
-      String[] action = new String[mActions.size()];
-      action = mActions.toArray(action);
-      final String[] act = action;
+        String[] action = new String[mActions.size()];
+        action = mActions.toArray(action);
+        final String[] act = action;
 
-      ArrayAdapter<String> adapter = new ArrayAdapter<String>(mMainActivity,
-                           android.R.layout.select_dialog_item, option);
-       AlertDialog.Builder builder = new AlertDialog.Builder(mMainActivity);
-       if (options.hasKey("title") && options.getString("title") != null && !options.getString("title").isEmpty()) {
-          builder.setTitle(options.getString("title"));
-       }
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(mMainActivity,
+                android.R.layout.select_dialog_item, option);
+        AlertDialog.Builder builder = new AlertDialog.Builder(mMainActivity);
+        if (options.hasKey("title") && options.getString("title") != null && !options.getString("title").isEmpty()) {
+            builder.setTitle(options.getString("title"));
+        }
 
-       builder.setAdapter(adapter, new DialogInterface.OnClickListener() {
-           public void onClick(DialogInterface dialog, int index) {
-               if (act[index].equals("photo")) {
-                   launchCamera(options, callback);
-               } else if (act[index].equals("library")) {
-                   launchImageLibrary(options, callback);
-               } else {
-                   response.putBoolean("didCancel", true);
-                   callback.invoke(response);
-               }
-           }
-       });
+        builder.setAdapter(adapter, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int index) {
+                if (act[index].equals("photo")) {
+                    launchCamera(options, callback);
+                } else if (act[index].equals("library")) {
+                    launchImageLibrary(options, callback);
+                } else {
+                    response.putBoolean("didCancel", true);
+                    callback.invoke(response);
+                }
+            }
+        });
 
-       final AlertDialog dialog = builder.create();
-       /**
-        * override onCancel method to callback cancel in case of a touch
-        * outside of the dialog or the BACK key pressed
-        */
-       dialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+        final AlertDialog dialog = builder.create();
+        /**
+         * override onCancel method to callback cancel in case of a touch
+         * outside of the dialog or the BACK key pressed
+         */
+        dialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
             @Override
             public void onCancel(DialogInterface dialog) {
                 dialog.dismiss();
@@ -131,311 +135,370 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
                 callback.invoke(response);
             }
         });
-       dialog.show();
-   }
-
-  // NOTE: Currently not reentrant / doesn't support concurrent requests
-  @ReactMethod
-  public void launchCamera(final ReadableMap options, final Callback callback) {
-    response = Arguments.createMap();
-
-    if (options.hasKey("noData")) {
-        noData = options.getBoolean("noData");
-    }
-    if (options.hasKey("maxWidth")) {
-        maxWidth = options.getInt("maxWidth");
-    }
-    if (options.hasKey("maxHeight")) {
-        maxHeight = options.getInt("maxHeight");
-    }
-    if (options.hasKey("quality")) {
-        quality = (int)(options.getDouble("quality") * 100);
+        dialog.show();
     }
 
-    Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-    if (cameraIntent.resolveActivity(mMainActivity.getPackageManager()) == null) {
-        response.putString("error", "Cannot launch camera");
-        callback.invoke(response);
-        return;
-    }
+    // NOTE: Currently not reentrant / doesn't support concurrent requests
+    @ReactMethod
+    public void launchCamera(final ReadableMap options, final Callback callback) {
+        response = Arguments.createMap();
 
-    // we create a tmp file to save the result
-    File path = Environment.getExternalStoragePublicDirectory(
-            Environment.DIRECTORY_PICTURES);
-    File imageFile;
-    try {
-        // Make sure the Pictures directory exists.
-        path.mkdirs();
-        imageFile = File.createTempFile("image_picker_capture_", ".jpg", path);
-    } catch (IOException e) {
-        e.printStackTrace();
-        response.putString("error", e.getMessage());
-        callback.invoke(response);
-        return;
-    }
-    cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(imageFile));
-    mCameraCaptureURI = Uri.fromFile(imageFile);
-    mCallback = callback;
+        if (options.hasKey("noData")) {
+            noData = options.getBoolean("noData");
+        }
+        if (options.hasKey("maxWidth")) {
+            maxWidth = options.getInt("maxWidth");
+        }
+        if (options.hasKey("maxHeight")) {
+            maxHeight = options.getInt("maxHeight");
+        }
+        if (options.hasKey("quality")) {
+            quality = (int)(options.getDouble("quality") * 100);
+        }
 
-    try {
+        Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (cameraIntent.resolveActivity(mMainActivity.getPackageManager()) == null) {
+            response.putString("error", "error resolving activity");
+            callback.invoke(response);
+            return;
+        }
+
+        // we create a tmp file to save the result
+        File path = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES);
+        File imageFile;
+        try {
+            // Make sure the Pictures directory exists.
+            path.mkdirs();
+            imageFile = File.createTempFile("image_picker_capture_", ".jpg", path);
+        } catch (IOException e) {
+            e.printStackTrace();
+            response.putString("error", e.getMessage());
+            callback.invoke(response);
+            return;
+        }
+        cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(imageFile));
+        mCameraCaptureURI = Uri.fromFile(imageFile);
+        mCallback = callback;
         mMainActivity.startActivityForResult(cameraIntent, REQUEST_LAUNCH_CAMERA);
     }
-    catch(ActivityNotFoundException e) {
-        e.printStackTrace();
-    }
-  }
 
-  // NOTE: Currently not reentrant / doesn't support concurrent requests
-  @ReactMethod
-  public void launchImageLibrary(final ReadableMap options, final Callback callback) {
-    response = Arguments.createMap();
+    // NOTE: Currently not reentrant / doesn't support concurrent requests
+    @ReactMethod
+    public void launchImageLibrary(final ReadableMap options, final Callback callback) {
+        response = Arguments.createMap();
 
-    if (options.hasKey("noData")) {
-        noData = options.getBoolean("noData");
-    }
-    if (options.hasKey("maxWidth")) {
-        maxWidth = options.getInt("maxWidth");
-    }
-    if (options.hasKey("maxHeight")) {
-        maxHeight = options.getInt("maxHeight");
-    }
-    if (options.hasKey("quality")) {
-        quality = (int)(options.getDouble("quality") * 100);
-    }
+        if (options.hasKey("noData")) {
+            noData = options.getBoolean("noData");
+        }
+        if (options.hasKey("maxWidth")) {
+            maxWidth = options.getInt("maxWidth");
+        }
+        if (options.hasKey("maxHeight")) {
+            maxHeight = options.getInt("maxHeight");
+        }
+        if (options.hasKey("quality")) {
+            quality = (int)(options.getDouble("quality") * 100);
+        }
 
-    Intent libraryIntent = new Intent(Intent.ACTION_PICK,
-        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-
-    if (libraryIntent.resolveActivity(mMainActivity.getPackageManager()) == null) {
-        response.putString("error", "Cannot launch photo library");
-        callback.invoke(response);
-        return;
-    }
-
-    mCallback = callback;
-
-    try {
+        Intent libraryIntent = new Intent(Intent.ACTION_PICK,
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        mCallback = callback;
         mMainActivity.startActivityForResult(libraryIntent, REQUEST_LAUNCH_IMAGE_LIBRARY);
     }
-    catch(ActivityNotFoundException e) {
-        e.printStackTrace();
-    }
-  }
 
-  public void onActivityResult(int requestCode, int resultCode, Intent data) {
-    //robustness code
-    if (mCallback == null || (mCameraCaptureURI == null && requestCode == REQUEST_LAUNCH_CAMERA)
-            || (requestCode != REQUEST_LAUNCH_CAMERA && requestCode != REQUEST_LAUNCH_IMAGE_LIBRARY)) {
-      return;
-    }
+    @ReactMethod
+    public void launchVideoLibrary(final Callback callback) {
+        response = Arguments.createMap();
+        mCallback = callback;
 
-    // user cancel
-    if (resultCode != Activity.RESULT_OK) {
-      response.putBoolean("didCancel", true);
-      mCallback.invoke(response);
-      return;
-    }
+        Log.d("Test", "launchVideoLibrary!!!");
+        Intent videoIntent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI);
+        videoIntent.setType("video/*");
 
-    Uri uri = (requestCode == REQUEST_LAUNCH_CAMERA)
-    ? mCameraCaptureURI
-    : data.getData();
-
-    String realPath = getRealPathFromURI(uri);
-    boolean isUrl = false;
-
-    if (realPath != null) {
-      try {
-        URL url = new URL(realPath);
-        isUrl = true;
-      } catch (MalformedURLException e) {
-        // not a url
-      }
-    }
-
-    if (realPath ==  null || isUrl) {
-      try {
-        File file = createFileFromURI(uri);
-        realPath = file.getAbsolutePath();
-        uri = Uri.fromFile(file);
-      }
-      catch(Exception e) {
-        response.putString("error", "Could not read photo");
-        response.putString("uri", uri.toString());
-        mCallback.invoke(response);
-        return;
-      }
-    }
-
-    try {
-        ExifInterface exif = new ExifInterface(realPath);
-        int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-        boolean isVertical = true ;
-        switch (orientation) {
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                isVertical = false ;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                isVertical = false ;
-                break;
-        }
-        response.putBoolean("isVertical", isVertical);
-    } catch (IOException e) {
-        e.printStackTrace();
-        response.putString("error", e.getMessage());
-        mCallback.invoke(response);
-        return;
-    }
-
-    BitmapFactory.Options options = new BitmapFactory.Options();
-    options.inJustDecodeBounds = true;
-    Bitmap photo = BitmapFactory.decodeFile(realPath, options);
-    int initialWidth = options.outWidth;
-    int initialHeight = options.outHeight;
-
-    // don't create a new file if contraint are respected
-    if (((initialWidth < maxWidth && maxWidth > 0) || maxWidth == 0)
-            && ((initialHeight < maxHeight && maxHeight > 0) || maxHeight == 0)
-            && quality == 100) {
-        response.putInt("width", initialWidth);
-        response.putInt("height", initialHeight);
-    } else {
-        uri = getResizedImage(getRealPathFromURI(uri), initialWidth, initialHeight);
-        realPath = getRealPathFromURI(uri);
-        photo = BitmapFactory.decodeFile(realPath, options);
-        response.putInt("width", options.outWidth);
-        response.putInt("height", options.outHeight);
-    }
-
-    response.putString("uri", uri.toString());
-    response.putString("path", realPath);
-
-    if (!noData) {
-        response.putString("data", getBase64StringFromFile(realPath));
-    }
-    mCallback.invoke(response);
-  }
-
-  private String getRealPathFromURI(Uri uri) {
-    String result;
-    String[] projection = { MediaStore.Images.Media.DATA };
-    Cursor cursor = mMainActivity.getContentResolver().query(uri, projection, null, null, null);
-    if (cursor == null) { // Source is Dropbox or other similar local file path
-        result = uri.getPath();
-    } else {
-        cursor.moveToFirst();
-        int idx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-        result = cursor.getString(idx);
-        cursor.close();
-    }
-    return result;
-  }
-
-  private File createFileFromURI(Uri uri) throws Exception {
-    File file = new File(mReactContext.getCacheDir(), "photo-" + uri.getLastPathSegment());
-    InputStream input = mReactContext.getContentResolver().openInputStream(uri);
-    OutputStream output = new FileOutputStream(file);
-
-    try {
-      byte[] buffer = new byte[4 * 1024];
-      int read;
-      while ((read = input.read(buffer)) != -1) {
-          output.write(buffer, 0, read);
-      }
-      output.flush();
-    } finally {
-      output.close();
-      input.close();
-    }
-
-    return file;
-  }
-
-  private String getBase64StringFromFile (String absoluteFilePath) {
-    InputStream inputStream = null;
-    try {
-      inputStream = new FileInputStream(absoluteFilePath);
-    } catch (FileNotFoundException e) {
-        e.printStackTrace();
-    }
-
-    byte[] bytes;
-    byte[] buffer = new byte[8192];
-    int bytesRead;
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-    try {
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            output.write(buffer, 0, bytesRead);
-        }
-    } catch (IOException e) {
-        e.printStackTrace();
-    }
-    bytes = output.toByteArray();
-    return Base64.encodeToString(bytes, Base64.NO_WRAP);
-  }
-
-  /**
-   * Create a resized image to fill the maxWidth and maxHeight values and the
-   * quality value
-   *
-   * @param realPath
-   * @param initialWidth
-   * @param initialHeight
-   * @return uri of resized file
-   */
-  private Uri getResizedImage (final String realPath, final int initialWidth, final int initialHeight) {
-    final BitmapFactory.Options options = new BitmapFactory.Options();
-    options.inSampleSize = 8;
-    Bitmap photo = BitmapFactory.decodeFile(realPath, options);
-
-    Bitmap scaledphoto = null;
-    if (maxWidth == 0) {
-        maxWidth  = initialWidth;
-    }
-    if (maxHeight == 0) {
-        maxHeight = initialHeight;
-    }
-    double widthRatio = (double)maxWidth / initialWidth;
-    double heightRatio = (double)maxHeight / initialHeight;
-
-    double ratio = (widthRatio < heightRatio)
-            ? widthRatio
-            : heightRatio;
-
-    int newWidth = (int)(initialWidth * ratio);
-    int newHeight = (int)(initialHeight * ratio);
-
-    scaledphoto = Bitmap.createScaledBitmap(photo, newWidth, newHeight, true);
-    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-    scaledphoto.compress(Bitmap.CompressFormat.JPEG, quality, bytes);
-    String filname = UUID.randomUUID().toString();
-    File path = Environment.getExternalStoragePublicDirectory(
-        Environment.DIRECTORY_PICTURES);
-    File f = new File(path, filname +".jpg");
-    try {
-        // Make sure the Pictures directory exists.
-        path.mkdirs();
-
-        f.createNewFile();
-    } catch (IOException e) {
-        e.printStackTrace();
-    }
-    FileOutputStream fo;
-    try {
-        fo = new FileOutputStream(f);
         try {
-            fo.write(bytes.toByteArray());
+            mMainActivity.startActivityForResult(videoIntent, REQUEST_LAUNCH_VIDEO_LIBRARY);
+        }
+        catch(ActivityNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @ReactMethod
+    public void shareIntent(final ReadableMap options, final Callback callback) {
+        Log.d("Test", "shareIntent!!!");
+        response = Arguments.createMap();
+        mCallback = callback;
+
+        String subject = "subject";
+        String body = "body";
+        String mimeType = "mimeType"; // "text/plain", "image/*", "video/mp4"
+        String filePath = "";
+        Uri uri = null;
+
+        if (options.hasKey("subject")) {
+            subject = options.getString("subject");
+        }
+        if (options.hasKey("body")) {
+            body = options.getString("body");
+        }
+        if (options.hasKey("mimeType")) {
+            mimeType = options.getString("mimeType");
+        }
+        if (options.hasKey("uri")) {
+            filePath = options.getString("uri");
+            uri = Uri.parse(filePath);
+        }
+
+        // create share intent
+        Intent sharingIntent = new Intent(android.content.Intent.ACTION_SEND);
+
+        // set intent type, // Set an explicit MIME data type.
+        sharingIntent.setType(mimeType);
+
+        // add content to share
+        if(uri != null) sharingIntent.putExtra(Intent.EXTRA_STREAM, uri);
+        sharingIntent.putExtra(android.content.Intent.EXTRA_SUBJECT, subject);
+        sharingIntent.putExtra(android.content.Intent.EXTRA_TEXT, body);
+
+        // create chooser
+        try {
+            mMainActivity.startActivityForResult(sharingIntent, REQUEST_SHARE);
+        }
+        catch(ActivityNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        Log.d("TEST", "onActivityResult: requestCode = " + requestCode);
+
+        //robustness code
+        if (mCallback == null || (mCameraCaptureURI == null && requestCode == REQUEST_LAUNCH_CAMERA) ||
+                (requestCode != REQUEST_LAUNCH_CAMERA &&
+                        requestCode != REQUEST_LAUNCH_IMAGE_LIBRARY &&
+                        requestCode != REQUEST_LAUNCH_VIDEO_LIBRARY &&
+                        requestCode != REQUEST_SHARE)) {
+            return;
+        }
+
+        Log.d("TEST", "onActivityResult: entered! " + requestCode);
+
+        // user cancel
+        if (resultCode != Activity.RESULT_OK) {
+            response.putBoolean("didCancel", true);
+            mCallback.invoke(response);
+            return;
+        }
+
+        // --- for share intent ---
+        if(requestCode == REQUEST_SHARE) {
+            Log.d("Share", "requestCode: REQUEST_SHARE... result received!!");
+            mCallback.invoke(response);
+            return;
+        }
+
+        Uri uri = (requestCode == REQUEST_LAUNCH_CAMERA)
+                ? mCameraCaptureURI
+                : data.getData();
+
+        String realPath = getRealPathFromURI(uri);
+        Log.d("TEST", "realPath = " + realPath);
+
+        // --- for VideoPicker ---
+        if(requestCode == REQUEST_LAUNCH_VIDEO_LIBRARY) {
+            response.putString("uri", realPath);
+
+            // --- check file size ---
+            File file = new File(realPath);
+            long fileSize = file.length();
+            Log.d("TEST", " fileSize=" + fileSize + ", " + fileSize/1024 + "KB, " + fileSize/1024/1024 + "MB");
+            response.putDouble("fileSize", fileSize / 1024 / 1024);
+
+            // --- check file format ---
+            String mimeType = getMimeType(realPath);
+            Log.d("TEST", " mimeType = " + mimeType);
+            response.putString("mimeType", mimeType);
+
+            // --- compress file ?!---
+            mCallback.invoke(response);
+            return;
+        }
+
+        boolean isUrl = true;
+        try {
+            URL url = new URL(realPath);
+        }
+        catch (MalformedURLException e) {
+            isUrl = false;
+        }
+        if (isUrl) {
+            // @todo handle url as well (Facebook image, etc..)
+            response.putString("uri", uri.toString());
+            response.putString("urlPath", realPath);
+            mCallback.invoke(response);
+            return;
+        }
+
+        try {
+            ExifInterface exif = new ExifInterface(realPath);
+            int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            boolean isVertical = true ;
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                    isVertical = false ;
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                    isVertical = false ;
+                    break;
+            }
+            response.putBoolean("isVertical", isVertical);
+        } catch (IOException e) {
+            e.printStackTrace();
+            response.putString("error", e.getMessage());
+            mCallback.invoke(response);
+            return;
+        }
+
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        Bitmap photo = BitmapFactory.decodeFile(realPath, options);
+        int initialWidth = options.outWidth;
+        int initialHeight = options.outHeight;
+
+        // don't create a new file if contraint are respected
+        if (((initialWidth < maxWidth && maxWidth > 0) || maxWidth == 0)
+                && ((initialHeight < maxHeight && maxHeight > 0) || maxHeight == 0)
+                && quality == 100) {
+            response.putInt("width", initialWidth);
+            response.putInt("height", initialHeight);
+        } else {
+            uri = getResizedImage(getRealPathFromURI(uri), initialWidth, initialHeight);
+            realPath = getRealPathFromURI(uri);
+            photo = BitmapFactory.decodeFile(realPath, options);
+            response.putInt("width", options.outWidth);
+            response.putInt("height", options.outHeight);
+        }
+
+        response.putString("uri", uri.toString());
+
+        if (!noData) {
+            response.putString("data", getBase64StringFromFile(realPath));
+        }
+        mCallback.invoke(response);
+    }
+
+    // mooqoo: added file
+    private static String getMimeType(String url) {
+        String type = null;
+        String extension = MimeTypeMap.getFileExtensionFromUrl(url);
+        if (extension != null) {
+            type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+        }
+        return type;
+    }
+
+    private String getRealPathFromURI(Uri uri) {
+        String result;
+        String[] projection = { MediaStore.Images.Media.DATA };
+        Cursor cursor = mMainActivity.getContentResolver().query(uri, projection, null, null, null);
+        if (cursor == null) { // Source is Dropbox or other similar local file path
+            result = uri.getPath();
+        } else {
+            cursor.moveToFirst();
+            int idx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            result = cursor.getString(idx);
+            cursor.close();
+        }
+        return result;
+    }
+
+    private String getBase64StringFromFile (String absoluteFilePath) {
+        InputStream inputStream = null;
+        try {
+            inputStream = new FileInputStream(absoluteFilePath);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        byte[] bytes;
+        byte[] buffer = new byte[8192];
+        int bytesRead;
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try {
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                output.write(buffer, 0, bytesRead);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
-    } catch (FileNotFoundException e) {
-        e.printStackTrace();
+        bytes = output.toByteArray();
+        return Base64.encodeToString(bytes, Base64.NO_WRAP);
     }
 
-    // recycle to avoid java.lang.OutOfMemoryError
-    if (photo != null) {
-        photo.recycle();
-        photo = null;
+    /**
+     * Create a resized image to fill the maxWidth and maxHeight values and the
+     * quality value
+     *
+     * @param realPath
+     * @param initialWidth
+     * @param initialHeight
+     * @return uri of resized file
+     */
+    private Uri getResizedImage (final String realPath, final int initialWidth, final int initialHeight) {
+        final BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = 8;
+        Bitmap photo = BitmapFactory.decodeFile(realPath, options);
+
+        Bitmap scaledphoto = null;
+        if (maxWidth == 0) {
+            maxWidth  = initialWidth;
+        }
+        if (maxHeight == 0) {
+            maxHeight = initialHeight;
+        }
+        double widthRatio = (double)maxWidth / initialWidth;
+        double heightRatio = (double)maxHeight / initialHeight;
+
+        double ratio = (widthRatio < heightRatio)
+                ? widthRatio
+                : heightRatio;
+
+        int newWidth = (int)(initialWidth * ratio);
+        int newHeight = (int)(initialHeight * ratio);
+
+        scaledphoto = Bitmap.createScaledBitmap(photo, newWidth, newHeight, true);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        scaledphoto.compress(Bitmap.CompressFormat.JPEG, quality, bytes);
+        String filname = UUID.randomUUID().toString();
+        File path = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES);
+        File f = new File(path, filname +".jpg");
+        try {
+            // Make sure the Pictures directory exists.
+            path.mkdirs();
+
+            f.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        FileOutputStream fo;
+        try {
+            fo = new FileOutputStream(f);
+            try {
+                fo.write(bytes.toByteArray());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        // recycle to avoid java.lang.OutOfMemoryError
+        if (photo != null) {
+            photo.recycle();
+            photo = null;
+        }
+        return Uri.fromFile(f);
     }
-    return Uri.fromFile(f);
-  }
 }
