@@ -19,6 +19,7 @@ import android.graphics.Bitmap;
 import android.media.ExifInterface;
 import android.content.ComponentName;
 
+import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -40,14 +41,11 @@ import java.util.UUID;
 import java.net.URL;
 import java.net.MalformedURLException;
 
-public class ImagePickerModule extends ReactContextBaseJavaModule {
+public class ImagePickerModule extends ReactContextBaseJavaModule implements ActivityEventListener {
     static final int REQUEST_LAUNCH_CAMERA = 1;
     static final int REQUEST_LAUNCH_IMAGE_LIBRARY = 2;
     static final int REQUEST_LAUNCH_VIDEO_LIBRARY = 3;
     static final int REQUEST_SHARE = 4;
-
-    private final ReactApplicationContext mReactContext;
-    private final Activity mMainActivity;
 
     private Uri mCameraCaptureURI;
     private Callback mCallback;
@@ -57,11 +55,9 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
     private int quality = 100;
     WritableMap response;
 
-    public ImagePickerModule(ReactApplicationContext reactContext, Activity mainActivity) {
+    public ImagePickerModule(ReactApplicationContext reactContext) {
         super(reactContext);
-
-        mReactContext = reactContext;
-        mMainActivity = mainActivity;
+        reactContext.addActivityEventListener(this);
     }
 
     @Override
@@ -71,6 +67,9 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void showImagePicker(final ReadableMap options, final Callback callback) {
+        Activity activity = getCurrentActivity();
+        if (activity == null) return;
+
         response = Arguments.createMap();
 
         List<String> mTitles = new ArrayList<String>();
@@ -102,9 +101,9 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
         action = mActions.toArray(action);
         final String[] act = action;
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(mMainActivity,
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(activity,
                 android.R.layout.select_dialog_item, option);
-        AlertDialog.Builder builder = new AlertDialog.Builder(mMainActivity);
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
         if (options.hasKey("title") && options.getString("title") != null && !options.getString("title").isEmpty()) {
             builder.setTitle(options.getString("title"));
         }
@@ -141,6 +140,9 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
     // NOTE: Currently not reentrant / doesn't support concurrent requests
     @ReactMethod
     public void launchCamera(final ReadableMap options, final Callback callback) {
+        Activity activity = getCurrentActivity();
+        if (activity == null) return;
+
         response = Arguments.createMap();
 
         if (options.hasKey("noData")) {
@@ -157,7 +159,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
         }
 
         Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (cameraIntent.resolveActivity(mMainActivity.getPackageManager()) == null) {
+        if (cameraIntent.resolveActivity(activity.getPackageManager()) == null) {
             response.putString("error", "error resolving activity");
             callback.invoke(response);
             return;
@@ -180,12 +182,15 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
         cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(imageFile));
         mCameraCaptureURI = Uri.fromFile(imageFile);
         mCallback = callback;
-        mMainActivity.startActivityForResult(cameraIntent, REQUEST_LAUNCH_CAMERA);
+        activity.startActivityForResult(cameraIntent, REQUEST_LAUNCH_CAMERA);
     }
 
     // NOTE: Currently not reentrant / doesn't support concurrent requests
     @ReactMethod
     public void launchImageLibrary(final ReadableMap options, final Callback callback) {
+        Activity activity = getCurrentActivity();
+        if (activity == null) return;
+
         response = Arguments.createMap();
 
         if (options.hasKey("noData")) {
@@ -204,11 +209,14 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
         Intent libraryIntent = new Intent(Intent.ACTION_PICK,
                 android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         mCallback = callback;
-        mMainActivity.startActivityForResult(libraryIntent, REQUEST_LAUNCH_IMAGE_LIBRARY);
+        activity.startActivityForResult(libraryIntent, REQUEST_LAUNCH_IMAGE_LIBRARY);
     }
 
     @ReactMethod
     public void launchVideoLibrary(final Callback callback) {
+        Activity activity = getCurrentActivity();
+        if (activity == null) return;
+
         response = Arguments.createMap();
         mCallback = callback;
 
@@ -217,7 +225,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
         videoIntent.setType("video/*");
 
         try {
-            mMainActivity.startActivityForResult(videoIntent, REQUEST_LAUNCH_VIDEO_LIBRARY);
+            activity.startActivityForResult(videoIntent, REQUEST_LAUNCH_VIDEO_LIBRARY);
         }
         catch(ActivityNotFoundException e) {
             e.printStackTrace();
@@ -226,6 +234,9 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void shareIntent(final ReadableMap options, final Callback callback) {
+        Activity activity = getCurrentActivity();
+        if (activity == null) return;
+
         Log.d("Test", "shareIntent!!!");
         response = Arguments.createMap();
         mCallback = callback;
@@ -263,7 +274,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
 
         // create chooser
         try {
-            mMainActivity.startActivityForResult(sharingIntent, REQUEST_SHARE);
+            activity.startActivityForResult(sharingIntent, REQUEST_SHARE);
         }
         catch(ActivityNotFoundException e) {
             e.printStackTrace();
@@ -388,6 +399,11 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
         mCallback.invoke(response);
     }
 
+    @Override
+    public void onNewIntent(Intent intent) {
+
+    }
+
     // mooqoo: added file
     private static String getMimeType(String url) {
         String type = null;
@@ -401,7 +417,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
     private String getRealPathFromURI(Uri uri) {
         String result;
         String[] projection = { MediaStore.Images.Media.DATA };
-        Cursor cursor = mMainActivity.getContentResolver().query(uri, projection, null, null, null);
+        Cursor cursor = getReactApplicationContext().getContentResolver().query(uri, projection, null, null, null);
         if (cursor == null) { // Source is Dropbox or other similar local file path
             result = uri.getPath();
         } else {
