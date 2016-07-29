@@ -281,6 +281,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         }
     }
 
+    @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         Log.d("TEST", "onActivityResult: requestCode = " + requestCode);
 
