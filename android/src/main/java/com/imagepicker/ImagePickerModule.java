@@ -282,9 +282,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
     }
 
     @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        Log.d("TEST", "onActivityResult: requestCode = " + requestCode);
-
+    public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
         //robustness code
         if (mCallback == null || (mCameraCaptureURI == null && requestCode == REQUEST_LAUNCH_CAMERA) ||
                 (requestCode != REQUEST_LAUNCH_CAMERA &&
@@ -293,8 +291,6 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
                         requestCode != REQUEST_SHARE)) {
             return;
         }
-
-        Log.d("TEST", "onActivityResult: entered! " + requestCode);
 
         // user cancel
         if (resultCode != Activity.RESULT_OK) {
