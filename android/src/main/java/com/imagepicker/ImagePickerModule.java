@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
-import android.nfc.Tag;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.database.Cursor;
@@ -17,7 +16,6 @@ import android.content.DialogInterface;
 import android.graphics.BitmapFactory;
 import android.graphics.Bitmap;
 import android.media.ExifInterface;
-import android.content.ComponentName;
 
 import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.Arguments;
@@ -42,6 +40,7 @@ import java.net.URL;
 import java.net.MalformedURLException;
 
 public class ImagePickerModule extends ReactContextBaseJavaModule implements ActivityEventListener {
+    static final String TAG = "ImagePicker";
     static final int REQUEST_LAUNCH_CAMERA = 1;
     static final int REQUEST_LAUNCH_IMAGE_LIBRARY = 2;
     static final int REQUEST_LAUNCH_VIDEO_LIBRARY = 3;
@@ -220,7 +219,6 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         response = Arguments.createMap();
         mCallback = callback;
 
-        Log.d("Test", "launchVideoLibrary!!!");
         Intent videoIntent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI);
         videoIntent.setType("video/*");
 
@@ -237,7 +235,6 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         Activity activity = getCurrentActivity();
         if (activity == null) return;
 
-        Log.d("Test", "shareIntent!!!");
         response = Arguments.createMap();
         mCallback = callback;
 
@@ -282,15 +279,17 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
     }
 
     @Override
-    public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
         //robustness code
         if (mCallback == null || (mCameraCaptureURI == null && requestCode == REQUEST_LAUNCH_CAMERA) ||
-                (requestCode != REQUEST_LAUNCH_CAMERA &&
-                        requestCode != REQUEST_LAUNCH_IMAGE_LIBRARY &&
-                        requestCode != REQUEST_LAUNCH_VIDEO_LIBRARY &&
-                        requestCode != REQUEST_SHARE)) {
+          (requestCode != REQUEST_LAUNCH_CAMERA &&
+            requestCode != REQUEST_LAUNCH_IMAGE_LIBRARY &&
+            requestCode != REQUEST_LAUNCH_VIDEO_LIBRARY &&
+            requestCode != REQUEST_SHARE)) {
             return;
         }
+
+        response = Arguments.createMap();
 
         // user cancel
         if (resultCode != Activity.RESULT_OK) {
@@ -301,17 +300,22 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
 
         // --- for share intent ---
         if(requestCode == REQUEST_SHARE) {
-            Log.d("Share", "requestCode: REQUEST_SHARE... result received!!");
+            Log.d(TAG, "requestCode: REQUEST_SHARE... result received!!");
             mCallback.invoke(response);
             return;
         }
 
         Uri uri = (requestCode == REQUEST_LAUNCH_CAMERA)
-                ? mCameraCaptureURI
-                : data.getData();
+          ? mCameraCaptureURI
+          : data.getData();
 
         String realPath = getRealPathFromURI(uri);
-        Log.d("TEST", "realPath = " + realPath);
+        if (realPath == null) {
+            Log.e(TAG, "realPath = " + realPath);
+            response.putString("error", "real path from uri is null");
+            mCallback.invoke(response);
+            return;
+        }
 
         // --- for VideoPicker ---
         if(requestCode == REQUEST_LAUNCH_VIDEO_LIBRARY) {
@@ -320,12 +324,12 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
             // --- check file size ---
             File file = new File(realPath);
             long fileSize = file.length();
-            Log.d("TEST", " fileSize=" + fileSize + ", " + fileSize/1024 + "KB, " + fileSize/1024/1024 + "MB");
+            Log.d(TAG, " fileSize=" + fileSize + ", " + fileSize/1024 + "KB, " + fileSize/1024/1024 + "MB");
             response.putDouble("fileSize", fileSize / 1024 / 1024);
 
             // --- check file format ---
             String mimeType = getMimeType(realPath);
-            Log.d("TEST", " mimeType = " + mimeType);
+            Log.d(TAG, " mimeType = " + mimeType);
             response.putString("mimeType", mimeType);
 
             // --- compress file ?!---
@@ -376,8 +380,8 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
 
         // don't create a new file if contraint are respected
         if (((initialWidth < maxWidth && maxWidth > 0) || maxWidth == 0)
-                && ((initialHeight < maxHeight && maxHeight > 0) || maxHeight == 0)
-                && quality == 100) {
+          && ((initialHeight < maxHeight && maxHeight > 0) || maxHeight == 0)
+          && quality == 100) {
             response.putInt("width", initialWidth);
             response.putInt("height", initialHeight);
         } else {
@@ -394,11 +398,6 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
             response.putString("data", getBase64StringFromFile(realPath));
         }
         mCallback.invoke(response);
-    }
-
-    @Override
-    public void onNewIntent(Intent intent) {
-
     }
 
     // mooqoo: added file
