@@ -289,7 +289,9 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
             return;
         }
 
-        response = Arguments.createMap();
+        WritableMap tmpResponse = Arguments.createMap();
+        tmpResponse.merge(response);
+        response = tmpResponse;
 
         // user cancel
         if (resultCode != Activity.RESULT_OK) {
