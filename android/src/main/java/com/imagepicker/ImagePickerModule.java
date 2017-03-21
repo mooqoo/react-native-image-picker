@@ -259,7 +259,10 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         }
         if (options.hasKey("uri")) {
             filePath = options.getString("uri");
-            uri = Uri.parse(filePath);
+
+            // http://stackoverflow.com/questions/33274470/from-uri-to-path-and-back-to-uri
+            File file = new File(filePath);
+            uri = Uri.fromFile(file);
         }
 
         // create share intent
