@@ -42,6 +42,7 @@ import java.net.URL;
 import java.net.MalformedURLException;
 
 public class ImagePickerModule extends ReactContextBaseJavaModule implements ActivityEventListener {
+    static final String TAG = "ImagePicker";
     static final int REQUEST_LAUNCH_CAMERA = 1;
     static final int REQUEST_LAUNCH_IMAGE_LIBRARY = 2;
     static final int REQUEST_LAUNCH_VIDEO_LIBRARY = 3;
@@ -292,17 +293,20 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
             return;
         }
 
+        WritableMap resultResponse = Arguments.createMap();
+        resultResponse.merge(response);
+
         // user cancel
         if (resultCode != Activity.RESULT_OK) {
-            response.putBoolean("didCancel", true);
-            mCallback.invoke(response);
+            resultResponse.putBoolean("didCancel", true);
+            mCallback.invoke(resultResponse);
             return;
         }
 
         // --- for share intent ---
         if(requestCode == REQUEST_SHARE) {
             Log.d("Share", "requestCode: REQUEST_SHARE... result received!!");
-            mCallback.invoke(response);
+            mCallback.invoke(resultResponse);
             return;
         }
 
@@ -311,25 +315,29 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
                 : data.getData();
 
         String realPath = getRealPathFromURI(uri);
-        Log.d("TEST", "realPath = " + realPath);
+        if (realPath == null) {
+            resultResponse.putString("error", "real path from uri is null");
+            mCallback.invoke(resultResponse);
+            return;
+        }
 
         // --- for VideoPicker ---
         if(requestCode == REQUEST_LAUNCH_VIDEO_LIBRARY) {
-            response.putString("uri", realPath);
+            resultResponse.putString("uri", realPath);
 
             // --- check file size ---
             File file = new File(realPath);
             long fileSize = file.length();
             Log.d("TEST", " fileSize=" + fileSize + ", " + fileSize/1024 + "KB, " + fileSize/1024/1024 + "MB");
-            response.putDouble("fileSize", fileSize / 1024 / 1024);
+            resultResponse.putDouble("fileSize", fileSize / 1024 / 1024);
 
             // --- check file format ---
             String mimeType = getMimeType(realPath);
             Log.d("TEST", " mimeType = " + mimeType);
-            response.putString("mimeType", mimeType);
+            resultResponse.putString("mimeType", mimeType);
 
             // --- compress file ?!---
-            mCallback.invoke(response);
+            mCallback.invoke(resultResponse);
             return;
         }
 
@@ -342,9 +350,9 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         }
         if (isUrl) {
             // @todo handle url as well (Facebook image, etc..)
-            response.putString("uri", uri.toString());
-            response.putString("urlPath", realPath);
-            mCallback.invoke(response);
+            resultResponse.putString("uri", uri.toString());
+            resultResponse.putString("urlPath", realPath);
+            mCallback.invoke(resultResponse);
             return;
         }
 
@@ -360,11 +368,11 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
                     isVertical = false ;
                     break;
             }
-            response.putBoolean("isVertical", isVertical);
+            resultResponse.putBoolean("isVertical", isVertical);
         } catch (IOException e) {
             e.printStackTrace();
-            response.putString("error", e.getMessage());
-            mCallback.invoke(response);
+            resultResponse.putString("error", e.getMessage());
+            mCallback.invoke(resultResponse);
             return;
         }
 
@@ -378,22 +386,22 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         if (((initialWidth < maxWidth && maxWidth > 0) || maxWidth == 0)
                 && ((initialHeight < maxHeight && maxHeight > 0) || maxHeight == 0)
                 && quality == 100) {
-            response.putInt("width", initialWidth);
-            response.putInt("height", initialHeight);
+            resultResponse.putInt("width", initialWidth);
+            resultResponse.putInt("height", initialHeight);
         } else {
             uri = getResizedImage(getRealPathFromURI(uri), initialWidth, initialHeight);
             realPath = getRealPathFromURI(uri);
             photo = BitmapFactory.decodeFile(realPath, options);
-            response.putInt("width", options.outWidth);
-            response.putInt("height", options.outHeight);
+            resultResponse.putInt("width", options.outWidth);
+            resultResponse.putInt("height", options.outHeight);
         }
 
-        response.putString("uri", uri.toString());
+        resultResponse.putString("uri", uri.toString());
 
         if (!noData) {
-            response.putString("data", getBase64StringFromFile(realPath));
+          resultResponse.putString("data", getBase64StringFromFile(realPath));
         }
-        mCallback.invoke(response);
+        mCallback.invoke(resultResponse);
     }
 
     @Override
