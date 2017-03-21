@@ -42,6 +42,7 @@ import java.net.URL;
 import java.net.MalformedURLException;
 
 public class ImagePickerModule extends ReactContextBaseJavaModule implements ActivityEventListener {
+    static final String TAG = "ImagePicker";
     static final int REQUEST_LAUNCH_CAMERA = 1;
     static final int REQUEST_LAUNCH_IMAGE_LIBRARY = 2;
     static final int REQUEST_LAUNCH_VIDEO_LIBRARY = 3;
@@ -282,7 +283,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
     }
 
     @Override
-    public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
         //robustness code
         if (mCallback == null || (mCameraCaptureURI == null && requestCode == REQUEST_LAUNCH_CAMERA) ||
                 (requestCode != REQUEST_LAUNCH_CAMERA &&
@@ -291,6 +292,10 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
                         requestCode != REQUEST_SHARE)) {
             return;
         }
+
+        WritableMap tmpResponse = Arguments.createMap();
+        tmpResponse.merge(response);
+        response = tmpResponse;
 
         // user cancel
         if (resultCode != Activity.RESULT_OK) {
@@ -311,7 +316,12 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
                 : data.getData();
 
         String realPath = getRealPathFromURI(uri);
-        Log.d("TEST", "realPath = " + realPath);
+        if (realPath == null) {
+            Log.e(TAG, "realPath = " + realPath);
+            response.putString("error", "real path from uri is null");
+            mCallback.invoke(response);
+            return;
+        }
 
         // --- for VideoPicker ---
         if(requestCode == REQUEST_LAUNCH_VIDEO_LIBRARY) {
@@ -394,11 +404,6 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
             response.putString("data", getBase64StringFromFile(realPath));
         }
         mCallback.invoke(response);
-    }
-
-    @Override
-    public void onNewIntent(Intent intent) {
-
     }
 
     // mooqoo: added file
