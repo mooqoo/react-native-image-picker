@@ -141,6 +141,8 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
     // NOTE: Currently not reentrant / doesn't support concurrent requests
     @ReactMethod
     public void launchCamera(final ReadableMap options, final Callback callback) {
+        if (mCallback != null) return;
+
         Activity activity = getCurrentActivity();
         if (activity == null) return;
 
@@ -189,6 +191,8 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
     // NOTE: Currently not reentrant / doesn't support concurrent requests
     @ReactMethod
     public void launchImageLibrary(final ReadableMap options, final Callback callback) {
+        if (mCallback != null) return;
+
         Activity activity = getCurrentActivity();
         if (activity == null) return;
 
@@ -215,6 +219,8 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
 
     @ReactMethod
     public void launchVideoLibrary(final Callback callback) {
+        if (mCallback != null) return;
+
         Activity activity = getCurrentActivity();
         if (activity == null) return;
 
@@ -235,6 +241,8 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
 
     @ReactMethod
     public void shareIntent(final ReadableMap options, final Callback callback) {
+        if (mCallback != null) return;
+
         Activity activity = getCurrentActivity();
         if (activity == null) return;
 
@@ -300,6 +308,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         if (resultCode != Activity.RESULT_OK) {
             resultResponse.putBoolean("didCancel", true);
             mCallback.invoke(resultResponse);
+            mCallback = null;
             return;
         }
 
@@ -307,6 +316,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         if(requestCode == REQUEST_SHARE) {
             Log.d("Share", "requestCode: REQUEST_SHARE... result received!!");
             mCallback.invoke(resultResponse);
+            mCallback = null;
             return;
         }
 
@@ -318,6 +328,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         if (realPath == null) {
             resultResponse.putString("error", "real path from uri is null");
             mCallback.invoke(resultResponse);
+            mCallback = null;
             return;
         }
 
@@ -338,6 +349,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
 
             // --- compress file ?!---
             mCallback.invoke(resultResponse);
+            mCallback = null;
             return;
         }
 
@@ -353,6 +365,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
             resultResponse.putString("uri", uri.toString());
             resultResponse.putString("urlPath", realPath);
             mCallback.invoke(resultResponse);
+            mCallback = null;
             return;
         }
 
@@ -373,6 +386,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
             e.printStackTrace();
             resultResponse.putString("error", e.getMessage());
             mCallback.invoke(resultResponse);
+            mCallback = null;
             return;
         }
 
@@ -402,6 +416,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
           resultResponse.putString("data", getBase64StringFromFile(realPath));
         }
         mCallback.invoke(resultResponse);
+        mCallback = null;
     }
 
     @Override
